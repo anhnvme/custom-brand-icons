@@ -1,5 +1,8 @@
 name: Auto Release Icons
 on:
+  push:
+    tags:
+      - '20*'
   workflow_dispatch:
 jobs:
   build-release:
@@ -8,10 +11,17 @@ jobs:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Fetches all history
           fetch-tags: true # Explicitly tell checkout to fetch tags
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build icons
+        run: |
+          node custom-icons-builder.cjs
       - name: Force Tag Sync
         run: |
           git fetch --tags --force --prune
@@ -20,17 +30,17 @@ jobs:
       - name: Generate Unique Version Tag
         id: vars
         run: |
-          YEAR_MONTH=$(date +'%Y.%m')
-          PATCH=0
-          
-          # Use ls-remote to check tags directly on the server (most reliable way)
-          # this avoids issues with the local runner cache
-          while git ls-remote --tags origin | grep -q "refs/tags/$YEAR_MONTH.$PATCH"; do
-            echo "Tag $YEAR_MONTH.$PATCH exists on remote, skipping..."
-            PATCH=$((PATCH + 1))
-          done
-          
-          VERSION="$YEAR_MONTH.$PATCH"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            YEAR_MONTH=$(date +'%Y.%m')
+            PATCH=0
+            while git ls-remote --tags origin | grep -q "refs/tags/$YEAR_MONTH.$PATCH"; do
+              echo "Tag $YEAR_MONTH.$PATCH exists on remote, skipping..."
+              PATCH=$((PATCH + 1))
+            done
+            VERSION="$YEAR_MONTH.$PATCH"
+          fi
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
           echo "Final Version to be created: $VERSION"
           
